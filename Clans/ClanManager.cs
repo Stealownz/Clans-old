@@ -67,7 +67,7 @@ namespace Clans
                      new SqlColumn("ClanName", MySqlDbType.VarChar)
                      ),
                  new SqlTable("ClanWarps",
-                     new SqlColumn("WarpName",MySqlDbType.VarChar) { Primary=true, Unique=true }
+                     new SqlColumn("WarpName",MySqlDbType.VarChar) { Primary=true, Unique=true }                  
                      )
             };
 
@@ -332,6 +332,12 @@ namespace Clans
 
         public static Clan FindClanByPlayer(TSPlayer ts)
         {
+            if (ts == null)
+                return null;
+
+            if (!ClanMembers.ContainsKey(ts.Index))
+                return null;
+
             return FindClanByName(ClanMembers[ts.Index]);
         }
 

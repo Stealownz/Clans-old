@@ -1,4 +1,2 @@
-1.0.0.0
-- Added /clan checkupdate
-- Added /clan changelog
-- reworked /clan help
+1.0.0.1
+- This should fix the null exception on server leave.
