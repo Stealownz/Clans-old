@@ -11,7 +11,7 @@ using System;
 
 namespace Clans
 {
-    [ApiVersion(1, 17)]
+    [ApiVersion(1, 20)]
     public class Clans : TerrariaPlugin
     {
         public UpdateChecker updateChecker;
