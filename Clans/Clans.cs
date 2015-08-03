@@ -103,9 +103,8 @@ namespace Clans {
       "/clan find <player> - find out which clan a player is in.",    
       "/clan togglechat - toggle auto-talking in clanchat instead of global chat.",
       "/clan rename <new name> - change your clan's name.",
-
-      /*"/clan invite <name> - will invite a player to your clan.",
-      "/clan acceptinvite - join a clan you were invited to.",
+      "/clan invite <name> - will invite a player to your clan.",
+      /*"/clan acceptinvite - join a clan you were invited to.",
       "/clan denyinvite - deny a pending clan invitation.",
       "/clan tpall - teleport all clan members to you.",    
       "/clan ban <player> - will ban a player from your clan by Ip-Address.",
@@ -117,10 +116,6 @@ namespace Clans {
       Clan Myclan = ClanManager.FindClanByPlayer(args.Player);
       if (Myclan == null) {
         args.Player.SendErrorMessage("You are not in a clan!");
-        return;
-      }
-      if (args.Player.mute) {
-        args.Player.SendErrorMessage("You are muted!");
         return;
       }
       Myclan.Broadcast(string.Format("[Clanchat] {0} - {1}: {2}", Myclan.Name, args.Player.Name, string.Join(" ", args.Parameters)));
@@ -414,6 +409,46 @@ namespace Clans {
           }
           break;
         #endregion rename
+
+        #region invite
+        case "invite":
+          {
+            if (MyClan == null) {
+              args.Player.SendErrorMessage("You are not in a clan!");
+              return;
+            }
+
+            if (MyClan.Owner != args.Player.User.Name) {
+              args.Player.SendErrorMessage("You are not allowed to invite people!");
+              return;
+            }
+
+            if (args.Parameters.Count < 2) {
+              args.Player.SendErrorMessage("Invalid syntax! proper syntax: /clan invite <player name>");
+              return;
+            }
+
+            string playerName = String.Join(" ", args.Parameters.GetRange(1, args.Parameters.Count - 1));
+            List<TSPlayer> tsplrs = TShock.Utils.FindPlayer(playerName);
+            if (tsplrs.Count > 1) {
+              TShock.Utils.SendMultipleMatchError(args.Player, tsplrs.Select(p => p.Name));
+              return;
+            }
+
+            if (ClanManager.FindClanByPlayer(tsplrs[0]) != null) {
+              args.Player.SendErrorMessage("Player is already in a clan!");
+              return;
+            }
+            
+            if (MyClan.IsBanned(playerName)) {
+              args.Player.SendErrorMessage("Player \"{0}\" is banned from this clan and cannot be invited!", playerName);
+              return;
+            }
+
+            ClanManager.JoinClan(tsplrs[0], MyClan);
+          }
+          break;
+        #endregion invite
 
         #region help
         default:
