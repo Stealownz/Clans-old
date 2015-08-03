@@ -14,7 +14,6 @@ namespace Clans
     [ApiVersion(1, 20)]
     public class Clans : TerrariaPlugin
     {
-        public UpdateChecker updateChecker;
         public override Version Version
         {
             get { return Assembly.GetExecutingAssembly().GetName().Version; }
@@ -35,7 +34,6 @@ namespace Clans
 
         public override void Initialize()
         {
-            updateChecker = new UpdateChecker();
             ClanHooks.ClanCreated += new ClanHooks.ClanCreatedD(ClanHooks_ClanCreated);
             ClanHooks.ClanLogin += new ClanHooks.ClanLoginD(ClanHooks_ClanLogin);
             ClanHooks.ClanJoin += new ClanHooks.ClanJoinD(ClanHooks_ClanJoin);
@@ -46,22 +44,10 @@ namespace Clans
             ServerApi.Hooks.ServerLeave.Register(this, OnLeave);
             TShockAPI.Hooks.PlayerHooks.PlayerPostLogin += new TShockAPI.Hooks.PlayerHooks.PlayerPostLoginD(PlayerHooks_PlayerPostLogin);
 
-            ServerApi.Hooks.GameInitialize.Register(this, OnInitialize);
-
             Commands.ChatCommands.Add(new Command(Permission.Use, ClanCmd, "clan"));
             Commands.ChatCommands.Add(new Command(Permission.Chat, Chat, "c") { AllowServer = false });
 
             ClanManager.Initialize();
-        }
-
-        void OnInitialize(EventArgs e)
-        {
-            updateChecker.CheckForUpdate();
-            if (updateChecker.UpdateAvailable)
-            {
-                TShock.Log.ConsoleInfo("There is an update available for the Clans plugin!");
-                TShock.Log.ConsoleInfo("Type /clan changelog to see the changelog!");
-            }
         }
 
         protected override void Dispose(bool disposing)
@@ -119,8 +105,6 @@ namespace Clans
         static string[] HelpMsg = new string[]
         {
             "/c <message> - talk in your clan's chat.",
-            "/clan checkupdate - checks for available updates.",
-            "/clan changelog - shows the changelog if a new update is available.",
             "/clan create <name> - create a new clan with you as leader.",
             "/clan join <name> - join an existing clan.",
             "/clan leave - leave your current clan.",
@@ -172,43 +156,6 @@ namespace Clans
 
             switch (cmd)
             {
-                #region checkupdate
-                case "checkupdate":
-                    {
-                        if (!args.Player.Group.HasPermission(Permission.Create))
-                        {
-                            args.Player.SendErrorMessage("You do not have permission to check for updates!");
-                            return;
-                        }
-
-                        if (!updateChecker.UpdateAvailable)
-                            updateChecker.CheckForUpdate();
-
-                        if (updateChecker.UpdateAvailable)
-                        {
-                            args.Player.SendInfoMessage("There is an update available for the Clans plugin!");
-                            args.Player.SendInfoMessage("Type /clan changelog to see the changelog!");                       
-                        }
-                        args.Player.SendErrorMessage("No update available!");
-                    }
-                    break;
-                #endregion checkupdate
-
-                #region changelog
-                case "changelog":
-                    {
-                        if (!updateChecker.UpdateAvailable)
-                        {
-                            args.Player.SendErrorMessage("There is no update available! Type \"/clan checkupdate\" to check for updates!");
-                            return;
-                        }
-                        args.Player.SendSuccessMessage("Changelog for the latest version (" + updateChecker.NewVersion + "):");
-                        for (int i = 0; i < updateChecker.ChangeLog.Length; i++)
-                            args.Player.SendInfoMessage(updateChecker.ChangeLog[i]);
-                    }
-                    break;
-                #endregion changelog
-
                 #region create
                 case "create":
                     {
@@ -238,7 +185,7 @@ namespace Clans
                             args.Player.SendErrorMessage("This clan already exists!");
                             return;
                         }
-                        if (!ClanManager.CreateClan(args.Player, new Clan() { Name = name, Owner = args.Player.UserAccountName }))
+                        if (!ClanManager.CreateClan(args.Player, new Clan() { Name = name, Owner = args.Player.User.Name }))
                             args.Player.SendErrorMessage("Something went wrong! Please contact an administrator.");
                     }
                     break;
@@ -264,7 +211,7 @@ namespace Clans
                             args.Player.SendErrorMessage("This clan does not exists!");
                             return;
                         }
-                        if (c.IsBanned(args.Player.UserAccountName))
+                        if (c.IsBanned(args.Player.User.Name))
                         {
                             args.Player.SendErrorMessage("You have been banned from this clan!");
                             return;
@@ -296,7 +243,7 @@ namespace Clans
                         }
                         else
                         {
-                            if (args.Player.UserAccountName == MyClan.Owner)
+                            if (args.Player.User.Name == MyClan.Owner)
                                 args.Player.SendErrorMessage("You are the owner of this clan, this means that if you leave, the clan will disband!");
                             args.Player.SendInfoMessage("Are you sure you want to leave this clan? type \"/clan leave confirm\"");
                         }
@@ -312,7 +259,7 @@ namespace Clans
                             args.Player.SendErrorMessage("You are not in a clan!");
                             return;
                         }
-                        if (MyClan.Owner != args.Player.UserAccountName)
+                        if (MyClan.Owner != args.Player.User.Name)
                         {
                             args.Player.SendErrorMessage("You are not allowed to alter the clan's invitemode settings!");
                             return;
@@ -406,7 +353,7 @@ namespace Clans
                             args.Player.SendErrorMessage("You are not in a clan!");
                             return;
                         }
-                        if (MyClan.Owner != args.Player.UserAccountName)
+                        if (MyClan.Owner != args.Player.User.Name)
                         {
                             args.Player.SendErrorMessage("You are not allowed to alter the clan's spawnpoint!");
                             return;
@@ -425,7 +372,7 @@ namespace Clans
                             args.Player.SendErrorMessage("You are not in a clan!");
                             return;
                         }
-                        if (MyClan.Owner != args.Player.UserAccountName)
+                        if (MyClan.Owner != args.Player.User.Name)
                         {
                             args.Player.SendErrorMessage("You are not allowed to alter the clan's chatcolor!");
                             return;
@@ -506,7 +453,7 @@ namespace Clans
                             args.Player.SendErrorMessage("You are not in a clan!");
                             return;
                         }
-                        if (MyClan.Owner != args.Player.UserAccountName)
+                        if (MyClan.Owner != args.Player.User.Name)
                         {
                             args.Player.SendErrorMessage("You are not allowed to alter the clan's name!");
                             return;

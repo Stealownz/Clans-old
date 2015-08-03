@@ -54,20 +54,20 @@ namespace Clans
             SqlTable[] tables = new SqlTable[]
             {
                  new SqlTable("Clans",
-                     new SqlColumn("Name", MySqlDbType.VarChar) { Primary=true, Unique=true },
-                     new SqlColumn("Owner", MySqlDbType.VarChar),
+                     new SqlColumn("Name", MySqlDbType.Text) { Primary=true, Unique=true },
+                     new SqlColumn("Owner", MySqlDbType.Text),
                      new SqlColumn("InviteMode", MySqlDbType.Int32),
                      new SqlColumn("TileX", MySqlDbType.Int32),
                      new SqlColumn("TileY", MySqlDbType.Int32),
-                     new SqlColumn("ChatColor", MySqlDbType.VarChar),
-                     new SqlColumn("Bans", MySqlDbType.VarChar)
+                     new SqlColumn("ChatColor", MySqlDbType.Text),
+                     new SqlColumn("Bans", MySqlDbType.Text)
                      ),
                  new SqlTable("ClanMembers",
-                     new SqlColumn("Username",MySqlDbType.VarChar) { Primary=true, Unique=true },
-                     new SqlColumn("ClanName", MySqlDbType.VarChar)
+                     new SqlColumn("Username",MySqlDbType.Text) { Primary=true, Unique=true },
+                     new SqlColumn("ClanName", MySqlDbType.Text)
                      ),
                  new SqlTable("ClanWarps",
-                     new SqlColumn("WarpName",MySqlDbType.VarChar) { Primary=true, Unique=true }                  
+                     new SqlColumn("WarpName",MySqlDbType.Text) { Primary=true, Unique=true }                  
                      )
             };
 
@@ -209,9 +209,9 @@ namespace Clans
 
         public static bool InsertBan(Clan clan, TSPlayer ts)
         {
-            if (clan.Bans.Contains(ts.UserAccountName))
+            if (clan.Bans.Contains(ts.User.Name))
                 return false;
-            clan.Bans.Add(ts.UserAccountName);
+            clan.Bans.Add(ts.User.Name);
             UpdateBans(clan);
             return true;
         }
@@ -247,7 +247,7 @@ namespace Clans
             try
             {
                 ClanMembers[ts.Index] = clan.Name;
-                Database.Query("INSERT INTO ClanMembers (Username, ClanName) VALUES (@0, @1)", ts.UserAccountName, clan.Name);
+                Database.Query("INSERT INTO ClanMembers (Username, ClanName) VALUES (@0, @1)", ts.User.Name, clan.Name);
                 clan.OnlineClanMembers.Add(ts.Index, new ClanMember() { Index = ts.Index, ClanName = ClanMembers[ts.Index] });
                 if (ts.UserAccountName != clan.Owner)
                     ClanHooks.OnClanJoin(ts, clan);
@@ -265,7 +265,7 @@ namespace Clans
             try
             {
                 ClanHooks.OnClanLeave(ts, clan);
-                if (ts.UserAccountName == clan.Owner)
+                if (ts.User.Name == clan.Owner)
                 {
                     ClanHooks.OnClanRemoved(clan);
                     RemoveClan(clan);
@@ -273,7 +273,7 @@ namespace Clans
                 else
                 {
                     clan.OnlineClanMembers.Remove(ts.Index);
-                    Database.Query("DELETE FROM ClanMembers WHERE Username = @0 AND ClanName = @1", ts.UserAccountName, clan.Name);
+                    Database.Query("DELETE FROM ClanMembers WHERE Username = @0 AND ClanName = @1", ts.User.Name, clan.Name);
                 }
                 ClanMembers[ts.Index] = string.Empty;
             }
@@ -299,7 +299,7 @@ namespace Clans
         {
             try
             {
-                using (var reader = Database.QueryReader("SELECT * FROM ClanMembers WHERE Username = @0", ts.UserAccountName))
+                using (var reader = Database.QueryReader("SELECT * FROM ClanMembers WHERE Username = @0", ts.User.Name))
                 {
                     if (reader.Read())
                     {

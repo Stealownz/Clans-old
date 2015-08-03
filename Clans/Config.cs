@@ -47,8 +47,8 @@ namespace Clans
             {
                 if (ts == null)
                 {
-                    Console.WriteLine("[Clans] an error has occurred while reading the config file! See below for more info:");
-                    Console.WriteLine(ex.ToString());
+                    TShock.Log.Error("[Clans] an error has occurred while reading the config file! See below for more info:");
+                    TShock.Log.Error(ex.ToString());
                 }
                 else
                     ts.SendErrorMessage("[Clans] There was an error reloading the config file, check the console for more info!");
