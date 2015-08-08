@@ -69,6 +69,11 @@
       <Name>TShockAPI</Name>
       <Private>False</Private>
     </ProjectReference>
+    <ProjectReference Include="..\..\UserSpecificFunctions\UserSpecificFunctions\UserSpecificFunctions.csproj">
+      <Project>{9ed6efec-9c68-4ae5-8ad9-b353d039c226}</Project>
+      <Name>UserSpecificFunctions</Name>
+      <Private>False</Private>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

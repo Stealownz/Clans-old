@@ -3,25 +3,25 @@ using System.Data;
 using System.Collections.Generic;
 using Mono.Data.Sqlite;
 using System.Linq;
-using System.Text;
 using TShockAPI;
 using System.IO;
 using TShockAPI.DB;
 using Clans.Hooks;
 using Newtonsoft.Json;
-using System.Net;
 using MySql.Data.MySqlClient;
-using System.Diagnostics;
-
+using System.Timers;
+using Terraria;
 
 namespace Clans {
   public static class ClanManager {
-    static IDbConnection Database;
+    private static IDbConnection Database;
     public static Config Config = new Config();
     public static string SavePath = Path.Combine(TShock.SavePath, "Clans");
     public static Dictionary<string, Clan> Clans = new Dictionary<string, Clan>();
     public static Dictionary<int, string> ClanMembers = new Dictionary<int, string>();
-
+    private static Timer timer;
+    public static ClanInvite[] PendingInvites = new ClanInvite[Main.maxPlayers];
+    
     public static void Initialize() {
       if (!Directory.Exists(SavePath))
         Directory.CreateDirectory(SavePath);
@@ -49,7 +49,8 @@ namespace Clans {
       SqlTable[] tables = new SqlTable[]
       {
                  new SqlTable("Clans",
-                     new SqlColumn("Name", MySqlDbType.Text) { Primary=true, Unique=true },
+                     new SqlColumn("Name", MySqlDbType.VarChar, Config.ClanNameLength) { Primary=true, Unique=true },
+                     new SqlColumn("Tag", MySqlDbType.Text),
                      new SqlColumn("Owner", MySqlDbType.Text),
                      new SqlColumn("InviteMode", MySqlDbType.Int32),
                      new SqlColumn("TileX", MySqlDbType.Int32),
@@ -58,11 +59,11 @@ namespace Clans {
                      new SqlColumn("Bans", MySqlDbType.Text)
                      ),
                  new SqlTable("ClanMembers",
-                     new SqlColumn("Username",MySqlDbType.Text) { Primary=true, Unique=true },
+                     new SqlColumn("UserID",MySqlDbType.Int32) { Primary=true, Unique=true },
                      new SqlColumn("ClanName", MySqlDbType.Text)
                      ),
                  new SqlTable("ClanWarps",
-                     new SqlColumn("WarpName",MySqlDbType.Text) { Primary=true, Unique=true }
+                     new SqlColumn("WarpName",MySqlDbType.Text)
                      )
       };
 
@@ -70,7 +71,31 @@ namespace Clans {
         SQLcreator.EnsureTableStructure(tables[i]);
 
       Config = Config.Read();
+      Config.write();
       LoadClans();
+
+      timer = new Timer(3000);
+      timer.Elapsed += OnElapsed;
+      timer.Start();
+
+      for (int i = 0; i < PendingInvites.Length; i++) {
+        PendingInvites[i] = new ClanInvite();
+        PendingInvites[i].Timeout = 0;
+      }
+    }
+
+    static void OnElapsed(object sender, ElapsedEventArgs e) {
+      for (int i = 0; i < PendingInvites.Length; i++) {
+        if (PendingInvites[i].Timeout <= 0)
+          continue;
+
+        TShock.Players[i].SendInfoMessage("Clan {0} has invited you.", PendingInvites[i].InvitingClan);
+        TShock.Players[i].SendInfoMessage("Type /clan acceptinvite or /clan denyinvite");
+        PendingInvites[i].Timeout--;
+
+        if (PendingInvites[i].Timeout <= 0)
+          TShock.Players[i].SendInfoMessage("Waited too long, invite dropped.");
+      }
     }
 
     static bool ParseColor(string colorstring, out Color color) {
@@ -179,6 +204,25 @@ namespace Clans {
       Database.Query("UPDATE Clans SET InviteMode = @0 WHERE Name = @1", (int)mode, clan.Name);
     }
 
+    public static void UpdateTag(Clan clan, string tag) {
+      Database.Query("UPDATE Clans SET Tag = @0 WHERE Name = @1", tag, clan.Name);
+      UnLoadClan(clan);
+      clan.Tag = tag;
+      LoadClan(clan);
+
+      try {
+        using (var reader = Database.QueryReader("SELECT * FROM ClanMembers WHERE ClanName = @0", clan.Name)) {
+          while (reader.Read()) {
+            int userID = reader.Get<int>("UserID");
+            UserSpecificFunctions.UserSpecificFunctions.LatestInstance.setUserSuffix(userID, tag);
+          }
+        }
+      }
+      catch (Exception ex) {
+        TShock.Log.Error(ex.ToString());
+      }
+    }
+
     static void UpdateBans(Clan clan) {
       Database.Query("UPDATE Clans SET Bans = @0 WHERE Name = @1", JsonConvert.SerializeObject(clan.Bans), clan.Name);
     }
@@ -187,14 +231,15 @@ namespace Clans {
       if (clan.Bans.Contains(ts.User.Name))
         return false;
       clan.Bans.Add(ts.User.Name);
+      LeaveClan(ts, clan);
       UpdateBans(clan);
       return true;
     }
 
-    public static bool RemoveBan(Clan clan, string name) {
-      if (clan.Bans.Contains(name))
+    public static bool RemoveBan(Clan clan, TSPlayer ts) {
+      if (!clan.Bans.Contains(ts.Name))
         return false;
-      clan.Bans.Remove(name);
+      clan.Bans.Remove(ts.Name);
       UpdateBans(clan);
       return true;
     }
@@ -216,10 +261,11 @@ namespace Clans {
     public static bool JoinClan(TSPlayer ts, Clan clan) {
       try {
         ClanMembers[ts.Index] = clan.Name;
-        Database.Query("INSERT INTO ClanMembers (Username, ClanName) VALUES (@0, @1)", ts.User.Name, clan.Name);
+        Database.Query("INSERT INTO ClanMembers (UserID, ClanName) VALUES (@0, @1)", ts.User.ID, clan.Name);
         clan.OnlineClanMembers.Add(ts.Index, new ClanMember() { Index = ts.Index, ClanName = ClanMembers[ts.Index] });
         if (ts.User.Name != clan.Owner)
           ClanHooks.OnClanJoin(ts, clan);
+        UpdateTag(clan, clan.Tag);
         return true;
       }
       catch (Exception ex) {
@@ -236,10 +282,11 @@ namespace Clans {
           RemoveClan(clan);
         }
         else {
-          clan.OnlineClanMembers.Remove(ts.Index);
-          Database.Query("DELETE FROM ClanMembers WHERE Username = @0 AND ClanName = @1", ts.User.Name, clan.Name);
+          UnLoadMember(ts);
+          Database.Query("DELETE FROM ClanMembers WHERE UserID = @0 AND ClanName = @1", ts.User.ID, clan.Name);
         }
         ClanMembers[ts.Index] = string.Empty;
+        UserSpecificFunctions.UserSpecificFunctions.LatestInstance.removeUserSuffix(ts.User.ID);
       }
       catch (Exception ex) {
         TShock.Log.Error(ex.ToString());
@@ -252,13 +299,9 @@ namespace Clans {
       Clans.Remove(clan.Name);
     }
 
-    public static void Kick(Clan clan, string name) {
-      Database.Query("REMOVE FROM ClanMembers WHERE ClanName = @0 AND Username = @1", clan.Name, name);
-    }
-
     public static void LoadMember(TSPlayer ts) {
       try {
-        using (var reader = Database.QueryReader("SELECT * FROM ClanMembers WHERE Username = @0", ts.User.Name)) {
+        using (var reader = Database.QueryReader("SELECT * FROM ClanMembers WHERE UserID = @0", ts.User.ID)) {
           if (reader.Read()) {
             string clanName = reader.Get<string>("ClanName");
             ClanMembers.Add(ts.Index, clanName);
@@ -281,7 +324,9 @@ namespace Clans {
       Clan c = FindClanByPlayer(ts);
       if (c != null)
         c.OnlineClanMembers.Remove(ts.Index);
-      ClanMembers.Remove(ts.Index);
+
+      if (ClanMembers.ContainsKey(ts.Index))
+        ClanMembers.Remove(ts.Index);
     }
 
     public static Clan FindClanByPlayer(TSPlayer ts) {
@@ -303,6 +348,7 @@ namespace Clans {
 
   public class Clan {
     public string Name { get; set; }
+    public string Tag { get; set; }
     public string Owner { get; set; }
     public InviteMode InviteMode { get; set; }
     public int TileX { get; set; }
@@ -315,6 +361,7 @@ namespace Clans {
       OnlineClanMembers = new Dictionary<int, ClanMember>();
       Bans = new List<string>();
       Color = ClanManager.Config.ParseColor();
+      Tag = "";
     }
 
     public bool IsInClan(int PlayerIndex) {
@@ -345,5 +392,15 @@ namespace Clans {
   public enum InviteMode {
     False = 0,
     True = 1
+  }
+
+  public class ClanInvite {
+    public string InvitingClan;
+    public int Timeout;
+
+    public ClanInvite(string invitingClan = "") {
+      InvitingClan = invitingClan;
+      Timeout = 10;
+    }
   }
 }

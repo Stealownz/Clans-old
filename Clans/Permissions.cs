@@ -5,9 +5,6 @@ namespace Clans {
     [Description("For usage of /clan")]
     public static readonly string Use = "clans.use";
 
-    [Description("For usage of /clan checkupdate")]
-    public static readonly string Update = "clans.update";
-
     [Description("For usage of /c")]
     public static readonly string Chat = "clans.chat";
 

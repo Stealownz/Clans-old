@@ -12,10 +12,14 @@ namespace Clans {
 
     public int MaxNumberOfClans { get; set; }
     public string DefaultChatColor { get; set; }
+    public int ClanNameLength { get; set; }
+    public int ClanTagLength { get; set; }
 
     public Config() {
       MaxNumberOfClans = 0;
       DefaultChatColor = "135,214,9";
+      ClanNameLength = 30;
+      ClanTagLength = 5;
     }
 
     public Color ParseColor() {

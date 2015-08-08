@@ -37,7 +37,7 @@ namespace Clans {
       TShockAPI.Hooks.PlayerHooks.PlayerPostLogin += new TShockAPI.Hooks.PlayerHooks.PlayerPostLoginD(PlayerHooks_PlayerPostLogin);
 
       Commands.ChatCommands.Add(new Command(Permission.Use, ClanCmd, "clan"));
-      Commands.ChatCommands.Add(new Command(Permission.Chat, Chat, "c") { AllowServer = false });
+      Commands.ChatCommands.Add(new Command(Permission.Chat, Chat, "c") { AllowServer = false, DoLog = false });
 
       ClanManager.Initialize();
     }
@@ -61,6 +61,7 @@ namespace Clans {
 
     void OnLeave(LeaveEventArgs e) {
       ClanManager.UnLoadMember(TShock.Players[e.Who]);
+      ClanManager.PendingInvites[e.Who].Timeout = 0;
     }
 
     void OnChat(ServerChatEventArgs args) {
@@ -82,34 +83,47 @@ namespace Clans {
 
       if (Myclan.OnlineClanMembers[ts.Index].DefaultToClanChat) {
         args.Handled = true;
-        Myclan.Broadcast(string.Format("[Clanchat] {0} - {1}: {2}", Myclan.Name, ts.Name, string.Join(" ", args.Text)));
+        string msg = string.Format("[Clanchat] {0} - {1}: {2}", Myclan.Tag, ts.Name, string.Join(" ", args.Text));
+        Myclan.Broadcast(msg);
+        TShock.Utils.SendLogs(msg, Color.PaleVioletRed);
       }
     }
 
     static string[] HelpMsg = new string[]
     {
+      /*
+      // TO TEST:      
+      
+      // Future Plans
+      Wormhole potion 
+      Add external admin commands.
+      */
+
       "/c <message> - talk in your clan's chat.",
       "/clan create <name> - create a new clan with you as leader.",
+      "/clan tag <tag> - create a new clan tag.",
       "/clan join <name> - join an existing clan.",
       "/clan leave - leave your current clan.",
       "/clan reloadclans - reload all clans and their members.",
       "/clan reloadconfig - reload the clans configuration file.",
       "/clan invitemode <true/false> - toggle invite-only mode.",
       "/clan list - list all existing clans.",
-      "/clan tp - teleport to the clan's spawnpoint.",
-      "/clan setspawn - set the clan's spawnpoint to your current location.",
-      "/clan setcolor <r, g, b> - change the clanchat's color.",    
-      "/clan who - list all online members in your clan.",    
-      "/clan find <player> - find out which clan a player is in.",    
+      //"/clan tp - teleport to the clan's spawnpoint.",
+      //"/clan setspawn - set the clan's spawnpoint to your current location.",
+      "/clan setcolor <r, g, b> - change the clanchat's color.",
+      "/clan who - list all online members in your clan.",
+      "/clan find <player> - find out which clan a player is in.",
       "/clan togglechat - toggle auto-talking in clanchat instead of global chat.",
       "/clan rename <new name> - change your clan's name.",
       "/clan invite <name> - will invite a player to your clan.",
-      /*"/clan acceptinvite - join a clan you were invited to.",
+      "/clan acceptinvite - join a clan you were invited to.",
       "/clan denyinvite - deny a pending clan invitation.",
-      "/clan tpall - teleport all clan members to you.",    
-      "/clan ban <player> - will ban a player from your clan by Ip-Address.",
-      "/clan unban <player> - will unban a player from your clan (if he was banned).",
-      "/clan kick <player> - will kick a player out of your clan.",*/
+      "/clan ban <player> - will ban a player from your clan.",
+      "/clan unban <player> - will unban a player from your clan.",
+      "/clan kick <player> - will kick a player out of your clan.",
+      /*
+      "/clan tpall - teleport all clan members to you.",
+      */
     };
 
     void Chat(CommandArgs args) {
@@ -118,7 +132,9 @@ namespace Clans {
         args.Player.SendErrorMessage("You are not in a clan!");
         return;
       }
-      Myclan.Broadcast(string.Format("[Clanchat] {0} - {1}: {2}", Myclan.Name, args.Player.Name, string.Join(" ", args.Parameters)));
+      string msg = string.Format("[Clanchat] {0} - {1}: {2}", Myclan.Tag, args.Player.Name, string.Join(" ", args.Parameters));
+      Myclan.Broadcast(msg);
+      TShock.Utils.SendLogs(msg, Color.PaleVioletRed, args.Player);
     }
 
     void ClanCmd(CommandArgs args) {
@@ -150,6 +166,10 @@ namespace Clans {
               args.Player.SendErrorMessage("You are already in a clan!");
               return;
             }
+            if (name.Length >= ClanManager.Config.ClanNameLength) {
+              args.Player.SendErrorMessage("Clan name is too long.");
+              return;
+            }
             if (ClanManager.FindClanByName(name) != null) {
               args.Player.SendErrorMessage("This clan already exists!");
               return;
@@ -159,6 +179,34 @@ namespace Clans {
           }
           break;
         #endregion create
+
+        #region tag
+        case "tag":
+          {
+            if (MyClan == null) {
+              args.Player.SendErrorMessage("You are not in a clan!");
+              return;
+            }
+
+            if (MyClan.Owner != args.Player.User.Name) {
+              args.Player.SendErrorMessage("You are not the leader of the clan!");
+              return;
+            }
+
+            if (args.Parameters.Count != 2 || args.Parameters[1] == "help") {
+              args.Player.SendErrorMessage("Invalid syntax! proper syntax: /clan tag <tag>");
+              return;
+            }
+
+            if (args.Parameters[1].Length > ClanManager.Config.ClanTagLength) {
+              args.Player.SendErrorMessage("Clan Tag is too long. Max length is " + ClanManager.Config.ClanTagLength);
+              return;
+            }
+            ClanManager.UpdateTag(MyClan, "{" + args.Parameters[1] + "}");
+            MyClan.Broadcast("Clan Tag updated.");
+          }
+          break;
+        #endregion
 
         #region join
         case "join":
@@ -282,36 +330,36 @@ namespace Clans {
           break;
         #endregion list
 
-        #region tp
-        case "tp":
-          {
-            if (MyClan == null) {
-              args.Player.SendErrorMessage("You are not in a clan!");
-              return;
-            }
-            if (MyClan.TileX == 0 || MyClan.TileY == 0) {
-              args.Player.SendErrorMessage("Your clan has no spawn point defined!");
-              return;
-            }
-            args.Player.Teleport(MyClan.TileX * 16, MyClan.TileY * 16);
-          }
-          break;
+        #region //tp
+        //case "tp":
+        //  {
+        //    if (MyClan == null) {
+        //      args.Player.SendErrorMessage("You are not in a clan!");
+        //      return;
+        //    }
+        //    if (MyClan.TileX == 0 || MyClan.TileY == 0) {
+        //      args.Player.SendErrorMessage("Your clan has no spawn point defined!");
+        //      return;
+        //    }
+        //    args.Player.Teleport(MyClan.TileX * 16, MyClan.TileY * 16);
+        //  }
+        //  break;
         #endregion tp
 
-        #region setspawn
-        case "setspawn":
-          {
-            if (MyClan == null) {
-              args.Player.SendErrorMessage("You are not in a clan!");
-              return;
-            }
-            if (MyClan.Owner != args.Player.User.Name) {
-              args.Player.SendErrorMessage("You are not allowed to alter the clan's spawnpoint!");
-              return;
-            }
-            ClanManager.SetSpawn(MyClan, args.Player);
-            args.Player.SendInfoMessage(string.Format("Your clan's spawnpoint has been changed to X:{0}, Y:{1}", MyClan.TileX, MyClan.TileY));
-          }
+        #region //setspawn
+        //case "setspawn":
+        //  {
+        //    if (MyClan == null) {
+        //      args.Player.SendErrorMessage("You are not in a clan!");
+        //      return;
+        //    }
+        //    if (MyClan.Owner != args.Player.User.Name) {
+        //      args.Player.SendErrorMessage("You are not allowed to alter the clan's spawnpoint!");
+        //      return;
+        //    }
+        //    ClanManager.SetSpawn(MyClan, args.Player);
+        //    args.Player.SendInfoMessage(string.Format("Your clan's spawnpoint has been changed to X:{0}, Y:{1}", MyClan.TileX, MyClan.TileY));
+        //  }
           break;
         #endregion setspawn
 
@@ -345,7 +393,7 @@ namespace Clans {
             IEnumerable<string> clanMembers = MyClan.OnlineClanMembers.Values.Select(m => m.TSPlayer.Name);
             PaginationTools.SendPage(args.Player, pageNumber, PaginationTools.BuildLinesFromTerms(clanMembers),
                 new PaginationTools.Settings {
-                  HeaderFormat = "Online Clanmembers ({0}/{1}):",
+                  HeaderFormat = clanMembers.Count<string>() + " Online Clanmembers (page: {0}/{1}):",
                   FooterFormat = "Type /clan who {0} for more.",
                 });
           }
@@ -435,20 +483,175 @@ namespace Clans {
               return;
             }
 
+            if (!tsplrs[0].IsLoggedIn) {
+              args.Player.SendErrorMessage("Player is not logged in!");
+              return;
+            }
+
             if (ClanManager.FindClanByPlayer(tsplrs[0]) != null) {
               args.Player.SendErrorMessage("Player is already in a clan!");
               return;
             }
-            
-            if (MyClan.IsBanned(playerName)) {
-              args.Player.SendErrorMessage("Player \"{0}\" is banned from this clan and cannot be invited!", playerName);
+
+            if (MyClan.IsBanned(tsplrs[0].Name)) {
+              args.Player.SendErrorMessage("Player \"{0}\" is banned from this clan and cannot be invited!", tsplrs[0].Name);
               return;
             }
 
-            ClanManager.JoinClan(tsplrs[0], MyClan);
+            if (ClanManager.PendingInvites[tsplrs[0].Index].Timeout > 0) {
+              args.Player.SendErrorMessage("Player already has an invite pending.");
+              return;
+            }
+
+            ClanManager.PendingInvites[tsplrs[0].Index] = new ClanInvite(MyClan.Name);
+            args.Player.SendInfoMessage("Invite sent");
           }
           break;
         #endregion invite
+
+        #region acceptinvite
+        case "acceptinvite":
+          {
+            if (ClanManager.PendingInvites[args.Player.Index].Timeout <= 0) {
+              args.Player.SendErrorMessage("You do not have any invites pending");
+              return;
+            }
+
+            ClanManager.PendingInvites[args.Player.Index].Timeout = 0;
+            Clan c = ClanManager.FindClanByName(ClanManager.PendingInvites[args.Player.Index].InvitingClan);
+            ClanManager.JoinClan(args.Player, c);
+          }
+          break;
+        #endregion
+
+        #region denyinvite
+        case "denyinvite":
+          {
+            if (ClanManager.PendingInvites[args.Player.Index].Timeout <= 0) {
+              args.Player.SendErrorMessage("You do not have any invites pending");
+              return;
+            }
+
+            ClanManager.PendingInvites[args.Player.Index].Timeout = 0;
+            Clan c = ClanManager.FindClanByName(ClanManager.PendingInvites[args.Player.Index].InvitingClan);
+            c.Broadcast(string.Format("{0} has denied your clan's invitation.", args.Player.Name));
+            args.Player.SendInfoMessage("You have denied the clan's invitation.");
+          }
+          break;
+        #endregion
+
+        #region ban
+        case "ban":
+          {
+            if (MyClan == null) {
+              args.Player.SendErrorMessage("You are not in a clan!");
+              return;
+            }
+
+            if (args.Player.Name != MyClan.Owner) {
+              args.Player.SendErrorMessage("You are not allowed to ban members!");
+              return;
+            }
+
+            if (args.Parameters.Count != 2 || args.Parameters[1] == "help") {
+              args.Player.SendErrorMessage("Invalid syntax! proper syntax: /clan ban <member name>");
+              return;
+            }
+
+            if (args.Parameters[1] == MyClan.Owner) {
+              args.Player.SendErrorMessage("You are not allowed to ban the clan owner.");
+              return;
+            }
+
+            List<TSPlayer> tsplrs = TShock.Utils.FindPlayer(args.Parameters[1]);
+
+            if (tsplrs.Count > 1) {
+              TShock.Utils.SendMultipleMatchError(args.Player, tsplrs.Select(p => p.Name));
+              return;
+            }
+
+            Clan clan = ClanManager.FindClanByPlayer(tsplrs[0]);
+            if (clan.Name != MyClan.Name) {
+              args.Player.SendErrorMessage("Player is not in your clan!");
+              return;
+            }
+
+            if (ClanManager.InsertBan(MyClan, tsplrs[0]))
+              MyClan.Broadcast(string.Format("{0} is banned from your clan!", tsplrs[0].Name));
+            else
+              args.Player.SendErrorMessage("An error occured, contact an administrator for help");
+          }
+          break;
+        #endregion
+
+        #region unban
+        case "unban":
+          {
+            if (MyClan == null) {
+              args.Player.SendErrorMessage("You are not in a clan!");
+              return;
+            }
+
+            if (args.Player.Name != MyClan.Owner) {
+              args.Player.SendErrorMessage("You are not allowed to unban members!");
+              return;
+            }
+
+            if (args.Parameters.Count != 2 || args.Parameters[1] == "help") {
+              args.Player.SendErrorMessage("Invalid syntax! proper syntax: /clan unban <member name>");
+              return;
+            }
+
+            List<TSPlayer> tsplrs = TShock.Utils.FindPlayer(args.Parameters[1]);
+
+            if (tsplrs.Count > 1) {
+              TShock.Utils.SendMultipleMatchError(args.Player, tsplrs.Select(p => p.Name));
+              return;
+            }
+
+            if (ClanManager.RemoveBan(MyClan, tsplrs[0]))
+              MyClan.Broadcast(string.Format("{0} is unbanned from your clan!", tsplrs[0].Name));
+            else
+              args.Player.SendErrorMessage("An error occured, contact an administrator for help");
+          }
+          break;
+        #endregion
+
+        #region kick
+        case "kick":
+          {
+            if (MyClan == null) {
+              args.Player.SendErrorMessage("You are not in a clan!");
+              return;
+            }
+
+            if (args.Player.Name != MyClan.Owner) {
+              args.Player.SendErrorMessage("You are not allowed to kick members!");
+              return;
+            }
+
+            if (args.Parameters.Count != 2 || args.Parameters[1] == "help") {
+              args.Player.SendErrorMessage("Invalid syntax! proper syntax: /clan kick <member name>");
+              return;
+            }
+
+            if (args.Parameters[1] == MyClan.Owner) {
+              args.Player.SendErrorMessage("You are not allowed to kick the clan owner.");
+              return;
+            }
+
+            List<TSPlayer> tsplrs = TShock.Utils.FindPlayer(args.Parameters[1]);
+
+            if (tsplrs.Count > 1) {
+              TShock.Utils.SendMultipleMatchError(args.Player, tsplrs.Select(p => p.Name));
+              return;
+            }
+
+            ClanManager.LeaveClan(tsplrs[0], MyClan);
+            MyClan.Broadcast(string.Format("{0} is kicked from your clan!", tsplrs[0].Name));
+          }
+          break;
+        #endregion
 
         #region help
         default:
