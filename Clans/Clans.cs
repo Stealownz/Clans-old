@@ -209,7 +209,7 @@ namespace Clans {
               args.Player.SendErrorMessage("Clan Tag is too long. Max length is " + ClanManager.Config.ClanTagLength);
               return;
             }
-            ClanManager.UpdateTag(MyClan, " {" + args.Parameters[1] + "}");
+            ClanManager.UpdateTag(MyClan, args.Parameters[1]);
             MyClan.Broadcast("Clan Tag updated.");
           }
           break;

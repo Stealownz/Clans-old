@@ -295,6 +295,7 @@ namespace Clans {
     }
 
     public static void RemoveClan(Clan clan) {
+      UserSpecificFunctions.UserSpecificFunctions.LatestInstance.removeAllSuffix(clan.Tag);
       Database.Query("DELETE FROM ClanMembers WHERE ClanName = @0", clan.Name);
       Database.Query("DELETE FROM Clans WHERE Name = @0", clan.Name);
       Clans.Remove(clan.Name);
