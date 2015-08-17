@@ -10,7 +10,7 @@ using Terraria;
 using System;
 
 namespace Clans {
-  [ApiVersion(1, 20)]
+  [ApiVersion(1, 21)]
   public class Clans : TerrariaPlugin {
     public override Version Version {
       get { return Assembly.GetExecutingAssembly().GetName().Version; }
@@ -60,6 +60,12 @@ namespace Clans {
     }
 
     void OnLeave(LeaveEventArgs e) {
+      if (TShock.Players[e.Who] == null)
+        return;
+
+      if (!TShock.Players[e.Who].IsLoggedIn)
+        return;
+
       ClanManager.UnLoadMember(TShock.Players[e.Who]);
       ClanManager.PendingInvites[e.Who].Timeout = 0;
     }
@@ -83,7 +89,7 @@ namespace Clans {
 
       if (Myclan.OnlineClanMembers[ts.Index].DefaultToClanChat) {
         args.Handled = true;
-        string msg = string.Format("[Clanchat] {0} - {1}: {2}", Myclan.Tag, ts.Name, string.Join(" ", args.Text));
+        string msg = string.Format("[Clan] {0} - {1}: {2}", Myclan.Tag, ts.Name, string.Join(" ", args.Text));
         Myclan.Broadcast(msg);
         TShock.Utils.SendLogs(msg, Color.PaleVioletRed);
       }
@@ -97,6 +103,7 @@ namespace Clans {
       // Future Plans
       Wormhole potion 
       Add external admin commands.
+      force to team
       */
 
       "/c <message> - talk in your clan's chat.",
@@ -132,7 +139,7 @@ namespace Clans {
         args.Player.SendErrorMessage("You are not in a clan!");
         return;
       }
-      string msg = string.Format("[Clanchat] {0} - {1}: {2}", Myclan.Tag, args.Player.Name, string.Join(" ", args.Parameters));
+      string msg = string.Format("[Clan] {0} - {1}: {2}", Myclan.Tag, args.Player.Name, string.Join(" ", args.Parameters));
       Myclan.Broadcast(msg);
       TShock.Utils.SendLogs(msg, Color.PaleVioletRed, args.Player);
     }
@@ -202,7 +209,7 @@ namespace Clans {
               args.Player.SendErrorMessage("Clan Tag is too long. Max length is " + ClanManager.Config.ClanTagLength);
               return;
             }
-            ClanManager.UpdateTag(MyClan, "{" + args.Parameters[1] + "}");
+            ClanManager.UpdateTag(MyClan, " {" + args.Parameters[1] + "}");
             MyClan.Broadcast("Clan Tag updated.");
           }
           break;

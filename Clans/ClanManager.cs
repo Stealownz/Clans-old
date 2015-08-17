@@ -124,6 +124,7 @@ namespace Clans {
 
     public static void ReloadConfig(TSPlayer ts) {
       Config = Config.Read(ts);
+      Config.write();
     }
 
     static void LoadClans() {
