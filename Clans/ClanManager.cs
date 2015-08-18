@@ -306,15 +306,18 @@ namespace Clans {
         using (var reader = Database.QueryReader("SELECT * FROM ClanMembers WHERE UserID = @0", ts.User.ID)) {
           if (reader.Read()) {
             string clanName = reader.Get<string>("ClanName");
-            ClanMembers.Add(ts.Index, clanName);
+            if (!ClanMembers.ContainsKey(ts.Index))
+              ClanMembers.Add(ts.Index, clanName);
             Clan c = FindClanByPlayer(ts);
             if (c != null) {
               c.OnlineClanMembers.Add(ts.Index, new ClanMember() { Index = ts.Index, ClanName = clanName });
               ClanHooks.OnClanLogin(ts, c);
             }
           }
-          else
-            ClanMembers.Add(ts.Index, string.Empty);
+          else {
+            if (!ClanMembers.ContainsKey(ts.Index))
+              ClanMembers.Add(ts.Index, string.Empty);
+          }
         }
       }
       catch (Exception ex) {

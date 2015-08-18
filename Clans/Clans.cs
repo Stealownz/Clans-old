@@ -95,43 +95,16 @@ namespace Clans {
       }
     }
 
-    static string[] HelpMsg = new string[]
-    {
-      /*
-      // TO TEST:      
-      
-      // Future Plans
-      Wormhole potion 
-      Add external admin commands.
-      force to team
-      */
+    // TO TEST:      
 
-      "/c <message> - talk in your clan's chat.",
-      "/clan create <name> - create a new clan with you as leader.",
-      "/clan tag <tag> - create a new clan tag.",
-      "/clan join <name> - join an existing clan.",
-      "/clan leave - leave your current clan.",
-      "/clan reloadclans - reload all clans and their members.",
-      "/clan reloadconfig - reload the clans configuration file.",
-      "/clan invitemode <true/false> - toggle invite-only mode.",
-      "/clan list - list all existing clans.",
-      //"/clan tp - teleport to the clan's spawnpoint.",
-      //"/clan setspawn - set the clan's spawnpoint to your current location.",
-      "/clan setcolor <r, g, b> - change the clanchat's color.",
-      "/clan who - list all online members in your clan.",
-      "/clan find <player> - find out which clan a player is in.",
-      "/clan togglechat - toggle auto-talking in clanchat instead of global chat.",
-      "/clan rename <new name> - change your clan's name.",
-      "/clan invite <name> - will invite a player to your clan.",
-      "/clan acceptinvite - join a clan you were invited to.",
-      "/clan denyinvite - deny a pending clan invitation.",
-      "/clan ban <player> - will ban a player from your clan.",
-      "/clan unban <player> - will unban a player from your clan.",
-      "/clan kick <player> - will kick a player out of your clan.",
-      /*
-      "/clan tpall - teleport all clan members to you.",
-      */
-    };
+    //  Future Plans
+    // Wormhole potion 
+    // Add external admin commands.
+    // force to team
+
+    // "/clan tp - teleport to the clan's spawnpoint.",
+    // "/clan setspawn - set the clan's spawnpoint to your current location.",
+    // "/clan tpall - teleport all clan members to you.",
 
     void Chat(CommandArgs args) {
       Clan Myclan = ClanManager.FindClanByPlayer(args.Player);
@@ -181,7 +154,7 @@ namespace Clans {
               args.Player.SendErrorMessage("This clan already exists!");
               return;
             }
-            if (!ClanManager.CreateClan(args.Player, new Clan() { Name = name, Owner = args.Player.User.Name }))
+            if (!ClanManager.CreateClan(args.Player, new Clan() { Name = name, Owner = args.Player.Name }))
               args.Player.SendErrorMessage("Something went wrong! Please contact an administrator.");
           }
           break;
@@ -337,7 +310,7 @@ namespace Clans {
           break;
         #endregion list
 
-        #region //tp
+        #region tp
         //case "tp":
         //  {
         //    if (MyClan == null) {
@@ -353,7 +326,7 @@ namespace Clans {
         //  break;
         #endregion tp
 
-        #region //setspawn
+        #region setspawn
         //case "setspawn":
         //  {
         //    if (MyClan == null) {
@@ -367,7 +340,7 @@ namespace Clans {
         //    ClanManager.SetSpawn(MyClan, args.Player);
         //    args.Player.SendInfoMessage(string.Format("Your clan's spawnpoint has been changed to X:{0}, Y:{1}", MyClan.TileX, MyClan.TileY));
         //  }
-          break;
+        //  break;
         #endregion setspawn
 
         #region setcolor
@@ -517,6 +490,8 @@ namespace Clans {
         #endregion invite
 
         #region acceptinvite
+        case "accept":
+        case "ai":
         case "acceptinvite":
           {
             if (ClanManager.PendingInvites[args.Player.Index].Timeout <= 0) {
@@ -532,6 +507,8 @@ namespace Clans {
         #endregion
 
         #region denyinvite
+        case "deny":
+        case "di":
         case "denyinvite":
           {
             if (ClanManager.PendingInvites[args.Player.Index].Timeout <= 0) {
@@ -665,17 +642,55 @@ namespace Clans {
         case "help":
           {
             int pageNumber;
-            if (!PaginationTools.TryParsePageNumber(args.Parameters, 1, args.Player, out pageNumber))
+            int pageParamIndex = 0;
+            if (args.Parameters.Count > 1)
+              pageParamIndex = 1;
+            if (!PaginationTools.TryParsePageNumber(args.Parameters, pageParamIndex, args.Player, out pageNumber))
               return;
 
-            PaginationTools.SendPage(args.Player, pageNumber, PaginationTools.BuildLinesFromTerms(HelpMsg),
-                new PaginationTools.Settings {
-                  HeaderFormat = "Clans help page ({0}/{1})",
-                  FooterFormat = "Type /clan help {0} for more.",
-                });
+            List<string> lines = new List<string>();
+            if (args.Player.Group.HasPermission(Permission.Chat))
+              lines.Add("/c <message> - talk in your clan's chat.");
+
+            if (args.Player.Group.HasPermission(Permission.Create))
+              lines.Add("/clan create <clanname> - create a new clan with you as leader.");
+
+            if (args.Player.Group.HasPermission(Permission.Use)) {
+              lines.Add("/clan join <name> - join an existing clan.");
+              lines.Add("/clan find <player> - find out which clan a player is in.");
+              lines.Add("/clan list - list all existing clans.");
+              lines.Add("/clan who - list all online members in your clan.");
+              lines.Add("/clan leave - leave your current clan.");
+              lines.Add("/clan invitemode <true/false> - toggle invite-only mode.");
+              lines.Add("/clan invite <name> - will invite a player to your clan.");
+              lines.Add("/clan accept|acceptinvite|ai - join a clan you were invited to.");
+              lines.Add("/clan deny|denyinvite|ai - deny a pending clan invitation.");
+              lines.Add("/clan rename <new name> - change your clan's name.");
+              lines.Add("/clan tag <tag> - create a new clan tag.");
+              lines.Add("/clan setcolor <r, g, b> - change the clanchat's color.");
+              lines.Add("/clan togglechat - toggle auto-talking in clanchat instead of global chat.");
+              lines.Add("/clan ban <player> - will ban a player from your clan.");
+              lines.Add("/clan unban <player> - will unban a player from your clan.");
+              lines.Add("/clan kick <player> - will kick a player out of your clan.");
+            }
+
+            if (args.Player.Group.HasPermission(Permission.Reload)) {
+              lines.Add("/clan reloadclans - reload all clans and their members.");
+              lines.Add("/clan reloadconfig - reload the clans configuration file.");
+            }
+
+
+            PaginationTools.SendPage(
+              args.Player, pageNumber, lines,
+              new PaginationTools.Settings {
+                HeaderFormat = "Available Clan Sub-Commands ({0}/{1}):",
+                FooterFormat = "Type /clans {0} for more sub-commands."
+              }
+            );
+
+            break;
           }
-          break;
-          #endregion help
+        #endregion help
       }
     }
 
