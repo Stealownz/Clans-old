@@ -123,7 +123,7 @@ namespace Clans {
     }
 
     public static void ReloadConfig(TSPlayer ts) {
-      Config = Config.Read(ts);
+      Config = Config.Read();
       Config.write();
     }
 

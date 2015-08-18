@@ -32,22 +32,19 @@ namespace Clans {
       return new Color(135, 214, 9);
     }
 
-    public Config Read(TSPlayer ts = null) {
-      if (!File.Exists(ConfigPath))
+    public Config Read() {
+      if (!File.Exists(ConfigPath)) {
         write();
+        return new Config();
+      }
 
       try {
-        Config res = JsonConvert.DeserializeObject<Config>(File.ReadAllText(ConfigPath));
-        return res;
+        return JsonConvert.DeserializeObject<Config>(File.ReadAllText(ConfigPath));
       }
       catch (Exception ex) {
-        if (ts == null) {
-          TShock.Log.Error("[Clans] an error has occurred while reading the config file! See below for more info:");
-          TShock.Log.Error(ex.ToString());
-        }
-        else
-          ts.SendErrorMessage("[Clans] There was an error reloading the config file, check the console for more info!");
-        return this;
+        TShock.Log.Error("[Clans] an error has occurred while reading the config file! See below for more info:");
+        TShock.Log.Error(ex.ToString());
+        return new Config();
       }
     }
 
