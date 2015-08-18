@@ -17,11 +17,11 @@ namespace Clans {
     private static IDbConnection Database;
     public static Config Config = new Config();
     public static string SavePath = Path.Combine(TShock.SavePath, "Clans");
-    public static Dictionary<string, Clan> Clans = new Dictionary<string, Clan>();
-    public static Dictionary<int, string> ClanMembers = new Dictionary<int, string>();
+    public static Dictionary<string, Clan> Clans;
+    public static Dictionary<int, ClanMember> ClanMembers;
     private static Timer timer;
     public static ClanInvite[] PendingInvites = new ClanInvite[Main.maxPlayers];
-    
+
     public static void Initialize() {
       if (!Directory.Exists(SavePath))
         Directory.CreateDirectory(SavePath);
@@ -60,6 +60,7 @@ namespace Clans {
                      ),
                  new SqlTable("ClanMembers",
                      new SqlColumn("UserID",MySqlDbType.Int32) { Primary=true, Unique=true },
+                     new SqlColumn("PlayerName", MySqlDbType.Text),
                      new SqlColumn("ClanName", MySqlDbType.Text)
                      ),
                  new SqlTable("ClanWarps",
@@ -72,6 +73,9 @@ namespace Clans {
 
       Config = Config.Read();
       Config.write();
+      Clans = new Dictionary<string, Clan>();
+      ClanMembers = new Dictionary<int, ClanMember>();
+      LoadMembers();
       LoadClans();
 
       timer = new Timer(3000);
@@ -111,15 +115,8 @@ namespace Clans {
     }
 
     public static void ReloadAll() {
-      Clans.Clear();
-      ClanMembers.Clear();
+      LoadMembers();
       LoadClans();
-      for (int i = 0; i < TShock.Players.Length; i++) {
-        if (TShock.Players[i] == null)
-          continue;
-
-        LoadMember(TShock.Players[i]);
-      }
     }
 
     public static void ReloadConfig(TSPlayer ts) {
@@ -128,10 +125,13 @@ namespace Clans {
     }
 
     static void LoadClans() {
+      Clans.Clear();
+
       try {
         using (var reader = Database.QueryReader("SELECT * FROM Clans")) {
           while (reader.Read()) {
             string name = reader.Get<string>("Name");
+            string tag = reader.Get<string>("Tag");
             string owner = reader.Get<string>("Owner");
             int inviteMode = reader.Get<int>("InviteMode");
             int tileX = reader.Get<int>("TileX");
@@ -140,16 +140,35 @@ namespace Clans {
             Color color;
             ParseColor(reader.Get<string>("ChatColor"), out color);
 
-            Clan clan = new Clan() {
-              Name = name,
-              Owner = owner,
+            Clan clan = new Clan(name, owner) {
               InviteMode = (InviteMode)inviteMode,
+              Tag = tag,
               TileX = tileX,
               TileY = tileY,
               Color = color,
               Bans = JsonConvert.DeserializeObject<List<string>>(bans)
             };
             Clans.Add(name, clan);
+          }
+        }
+      }
+      catch (Exception ex) {
+        TShock.Log.Error(ex.ToString());
+      }
+    }
+
+    static void LoadMembers() {
+      ClanMembers.Clear();
+
+      try {
+        using (var reader = Database.QueryReader("SELECT * FROM ClanMembers")) {
+          while (reader.Read()) {
+            int userID = reader.Get<int>("UserID");
+            string playername = reader.Get<string>("PlayerName");
+            string clanName = reader.Get<string>("ClanName");
+
+            if (!ClanMembers.ContainsKey(userID))
+              ClanMembers.Add(userID, new ClanMember(userID, playername, clanName));
           }
         }
       }
@@ -167,34 +186,19 @@ namespace Clans {
       return true;
     }
 
-    public static void Rename(Clan clan, TSPlayer ts, string newname) {
+    public static void Rename(Clan clan, string newname) {
       Database.Query("UPDATE Clans SET Name = @0 WHERE Name = @1", newname, clan.Name);
       Database.Query("UPDATE ClanMembers SET ClanName = @0 WHERE ClanName = @1", newname, clan.Name);
-      UnLoadClan(clan);
-      clan.Name = newname;
-      LoadClan(clan);
-    }
-
-    public static void UnLoadClan(Clan clan) {
+      ClanMembers.Values.Where(c => c.ClanName == clan.Name)
+        .ForEach(delegate (ClanMember member) { member.ClanName = newname; });
       Clans.Remove(clan.Name);
-      int[] ids = ClanMembers.Where(c => c.Value == clan.Name).Select(c => c.Key).ToArray();
-      for (int i = 0; i < ids.Length; i++)
-        UnLoadMember(TShock.Players[ids[i]]);
+      clan.Name = newname;
+      Clans.Add(newname,clan);
     }
 
-    public static void LoadClan(Clan clan) {
-      Clans.Add(clan.Name, clan);
-      foreach (TSPlayer ts in TShock.Players) {
-        if (ts != null) {
-          if (!ClanMembers.ContainsKey(ts.Index))
-            LoadMember(ts);
-        }
-      }
-    }
-
-    public static void SetSpawn(Clan clan, TSPlayer ts) {
-      clan.TileX = ts.TileX;
-      clan.TileY = ts.TileY;
+    public static void SetSpawn(Clan clan, int tileX, int tileY) {
+      clan.TileX = tileX;
+      clan.TileY = tileY;
       Database.Query("UPDATE Clans SET TileX = @0, TileY = @1 WHERE Name = @2", clan.TileX, clan.TileY, clan.Name);
     }
 
@@ -207,10 +211,7 @@ namespace Clans {
 
     public static void UpdateTag(Clan clan, string tag) {
       Database.Query("UPDATE Clans SET Tag = @0 WHERE Name = @1", tag, clan.Name);
-      UnLoadClan(clan);
-      clan.Tag = tag;
-      LoadClan(clan);
-
+      Clans[clan.Name].Tag = tag;
       try {
         using (var reader = Database.QueryReader("SELECT * FROM ClanMembers WHERE ClanName = @0", clan.Name)) {
           while (reader.Read()) {
@@ -228,29 +229,37 @@ namespace Clans {
       Database.Query("UPDATE Clans SET Bans = @0 WHERE Name = @1", JsonConvert.SerializeObject(clan.Bans), clan.Name);
     }
 
-    public static bool InsertBan(Clan clan, TSPlayer ts) {
-      if (clan.Bans.Contains(ts.User.Name))
+    public static bool InsertBan(Clan clan, string name) {
+      if (clan.Bans.Contains(name))
         return false;
-      clan.Bans.Add(ts.User.Name);
-      LeaveClan(ts, clan);
+      clan.Bans.Add(name);
       UpdateBans(clan);
       return true;
     }
 
-    public static bool RemoveBan(Clan clan, TSPlayer ts) {
-      if (!clan.Bans.Contains(ts.Name))
+    public static bool InsertBan(Clan clan, ClanMember member) {
+      if (clan.Bans.Contains(member.Name))
         return false;
-      clan.Bans.Remove(ts.Name);
+      clan.Bans.Add(member.Name);
+      LeaveClan(clan, member);
       UpdateBans(clan);
       return true;
     }
 
-    public static bool CreateClan(TSPlayer ts, Clan clan) {
+    public static bool RemoveBan(Clan clan, string playername) {
+      if (!clan.Bans.Contains(playername))
+        return false;
+      clan.Bans.Remove(playername);
+      UpdateBans(clan);
+      return true;
+    }
+
+    public static bool CreateClan(Clan clan, ClanMember member) {
       try {
         Database.Query("INSERT INTO Clans (Name, Owner, InviteMode, ChatColor, Bans) VALUES (@0, @1, @2, @3, @4)", clan.Name, clan.Owner, (int)InviteMode.False, Config.DefaultChatColor, "[]");
         Clans.Add(clan.Name, clan);
-        JoinClan(ts, clan);
-        ClanHooks.OnClanCreated(ts, clan.Name);
+        JoinClan(clan, member);
+        ClanHooks.OnClanCreated(getClanMember(member.Name), clan.Name);
         return true;
       }
       catch (Exception ex) {
@@ -259,13 +268,16 @@ namespace Clans {
       }
     }
 
-    public static bool JoinClan(TSPlayer ts, Clan clan) {
+    public static bool JoinClan(Clan clan, ClanMember member) {
       try {
-        ClanMembers[ts.Index] = clan.Name;
-        Database.Query("INSERT INTO ClanMembers (UserID, ClanName) VALUES (@0, @1)", ts.User.ID, clan.Name);
-        clan.OnlineClanMembers.Add(ts.Index, new ClanMember() { Index = ts.Index, ClanName = ClanMembers[ts.Index] });
-        if (ts.User.Name != clan.Owner)
-          ClanHooks.OnClanJoin(ts, clan);
+        if (ClanMembers.ContainsKey(member.UserID)) {
+          ClanMembers[member.UserID] = member;
+        } else {
+          ClanMembers.Add(member.UserID, member);
+        }
+        Database.Query("INSERT INTO ClanMembers (UserID, PlayerName, ClanName) VALUES (@0, @1, @2)", member.UserID, member.Name, clan.Name);
+        if (member.Name != clan.Owner)
+          ClanHooks.OnClanJoin(member, clan);
         UpdateTag(clan, clan.Tag);
         return true;
       }
@@ -275,19 +287,20 @@ namespace Clans {
       }
     }
 
-    public static void LeaveClan(TSPlayer ts, Clan clan) {
+    public static void LeaveClan(Clan clan, ClanMember member) {
       try {
-        ClanHooks.OnClanLeave(ts, clan);
-        if (ts.User.Name == clan.Owner) {
+        ClanHooks.OnClanLeave(member, clan);
+        if (member.Name == clan.Owner) {
           ClanHooks.OnClanRemoved(clan);
           RemoveClan(clan);
         }
         else {
-          UnLoadMember(ts);
-          Database.Query("DELETE FROM ClanMembers WHERE UserID = @0 AND ClanName = @1", ts.User.ID, clan.Name);
+          Database.Query("DELETE FROM ClanMembers WHERE UserID = @0 AND ClanName = @1", member.UserID, clan.Name);
         }
-        ClanMembers[ts.Index] = string.Empty;
-        UserSpecificFunctions.UserSpecificFunctions.LatestInstance.removeUserSuffix(ts.User.ID);
+
+        if (ClanMembers.ContainsKey(member.UserID))
+          ClanMembers.Remove(member.UserID);
+        UserSpecificFunctions.UserSpecificFunctions.LatestInstance.removeUserSuffix(member.UserID);
       }
       catch (Exception ex) {
         TShock.Log.Error(ex.ToString());
@@ -301,53 +314,31 @@ namespace Clans {
       Clans.Remove(clan.Name);
     }
 
-    public static void LoadMember(TSPlayer ts) {
-      try {
-        using (var reader = Database.QueryReader("SELECT * FROM ClanMembers WHERE UserID = @0", ts.User.ID)) {
-          if (reader.Read()) {
-            string clanName = reader.Get<string>("ClanName");
-            if (!ClanMembers.ContainsKey(ts.Index))
-              ClanMembers.Add(ts.Index, clanName);
-            Clan c = FindClanByPlayer(ts);
-            if (c != null) {
-              c.OnlineClanMembers.Add(ts.Index, new ClanMember() { Index = ts.Index, ClanName = clanName });
-              ClanHooks.OnClanLogin(ts, c);
-            }
-          }
-          else {
-            if (!ClanMembers.ContainsKey(ts.Index))
-              ClanMembers.Add(ts.Index, string.Empty);
-          }
-        }
-      }
-      catch (Exception ex) {
-        TShock.Log.Error(ex.ToString());
-      }
-    }
+    public static Clan FindClanByPlayer(int UserID) {
+      if (!ClanMembers.ContainsKey(UserID))
+        return null;
 
-    public static void UnLoadMember(TSPlayer ts) {
-      Clan c = FindClanByPlayer(ts);
-      if (c != null)
-        c.OnlineClanMembers.Remove(ts.Index);
-
-      if (ClanMembers.ContainsKey(ts.Index))
-        ClanMembers.Remove(ts.Index);
+      return FindClanByName(ClanMembers[UserID].ClanName);
     }
 
     public static Clan FindClanByPlayer(TSPlayer ts) {
       if (ts == null)
         return null;
 
-      if (!ClanMembers.ContainsKey(ts.Index))
+      if (!ClanMembers.ContainsKey(ts.User.ID))
         return null;
 
-      return FindClanByName(ClanMembers[ts.Index]);
+      return FindClanByName(ClanMembers[ts.User.ID].ClanName);
     }
 
     public static Clan FindClanByName(string name) {
       if (Clans.ContainsKey(name))
         return Clans[name];
       return null;
+    }
+
+    public static ClanMember getClanMember(string name) {
+      return ClanMembers.Values.Where(x => x.Name == name).FirstOrDefault();
     }
   }
 
@@ -359,18 +350,28 @@ namespace Clans {
     public int TileX { get; set; }
     public int TileY { get; set; }
     public Color Color { get; set; }
-    public Dictionary<int, ClanMember> OnlineClanMembers { get; set; }
+    public List<string> ClanMembers {
+      get {
+        return ClanManager.ClanMembers.Where(c => c.Value.ClanName == this.Name).Select(x => x.Value.Name).ToList();
+      }
+    }
+    public List<ClanMember> OnlineClanMembers {
+      get {
+        return ClanManager.ClanMembers.Values.Where(c => c.ClanName == this.Name && c.Index >= 0).ToList();
+      }
+    }
     public List<string> Bans { get; set; }
 
-    public Clan() {
-      OnlineClanMembers = new Dictionary<int, ClanMember>();
+    public Clan(string name, string owner) {
+      Name = name;
+      Owner = owner;
       Bans = new List<string>();
       Color = ClanManager.Config.ParseColor();
       Tag = "";
     }
 
-    public bool IsInClan(int PlayerIndex) {
-      return OnlineClanMembers.ContainsKey(PlayerIndex);
+    public bool IsInClan(string playerName) {
+      return ClanMembers.Contains(playerName);
     }
 
     public bool IsBanned(string name) {
@@ -378,20 +379,36 @@ namespace Clans {
     }
 
     public void Broadcast(string msg, int ExcludePlayer = -1) {
-      foreach (KeyValuePair<int, ClanMember> kvp in OnlineClanMembers) {
-        if (ExcludePlayer > -1 && kvp.Key == ExcludePlayer)
+      foreach (ClanMember member in OnlineClanMembers) {
+        if (ExcludePlayer > -1 && member.Index == ExcludePlayer)
           continue;
 
-        kvp.Value.TSPlayer.SendMessage(msg, Color);
+        member.Player.SendMessage(msg, Color);
       }
     }
   }
 
   public class ClanMember {
-    public int Index { get; set; }
+    public int UserID { get; set; }
+    public string Name { get; set; }
     public string ClanName { get; set; }
-    public TSPlayer TSPlayer { get { return TShock.Players[Index]; } }
+    public int Index { get; set; }
+    public TSPlayer Player {
+      get {
+        if (Index >= 0)
+          return TShock.Players[Index];
+        else
+          return null;
+      }
+    }
     public bool DefaultToClanChat { get; set; }
+
+    public ClanMember(int userID, string playerName, string clanName, int index = -1) {
+      UserID = userID;
+      Name = playerName;
+      ClanName = clanName;
+      Index = index;
+    }
   }
 
   public enum InviteMode {
