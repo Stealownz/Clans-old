@@ -11,7 +11,7 @@ using Terraria;
 using System;
 
 namespace Clans {
-  [ApiVersion(1, 21)]
+  [ApiVersion(1, 22)]
   public class Clans : TerrariaPlugin {
     public override Version Version {
       get { return Assembly.GetExecutingAssembly().GetName().Version; }
