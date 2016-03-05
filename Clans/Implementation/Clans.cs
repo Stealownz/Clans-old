@@ -17,7 +17,7 @@ namespace Clans {
       get { return Assembly.GetExecutingAssembly().GetName().Version; }
     }
     public override string Author {
-      get { return "Ancientgods"; }
+      get { return "Stealownz"; }
     }
     public override string Name {
       get { return "Clans"; }
@@ -57,7 +57,7 @@ namespace Clans {
     #region Hooks
     void OnPostInitialize(EventArgs args) {
       Commands.ChatCommands.Add(new Command(Permission.Use, ClanCmd, "clan"));
-      Commands.ChatCommands.Add(new Command(Permission.Chat, Chat, "c") { AllowServer = false, DoLog = false });
+      Commands.ChatCommands.Add(new Command(Permission.Chat, Chat, "c") { AllowServer = false });
 
       ClanManager.Initialize();
     }
