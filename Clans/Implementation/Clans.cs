@@ -111,8 +111,7 @@ namespace Clans {
 
     // TO TEST:      
     // "/clan ban kick"
-
-
+    
     //  Future Plans
     // Wormhole potion 
     // Add external admin commands.
@@ -339,36 +338,36 @@ namespace Clans {
         #endregion list
 
         #region tp
-        //case "tp":
-        //  {
-        //    if (MyClan == null) {
-        //      args.Player.SendErrorMessage("You are not in a clan!");
-        //      return;
-        //    }
-        //    if (MyClan.TileX == 0 || MyClan.TileY == 0) {
-        //      args.Player.SendErrorMessage("Your clan has no spawn point defined!");
-        //      return;
-        //    }
-        //    args.Player.Teleport(MyClan.TileX * 16, MyClan.TileY * 16);
-        //  }
-        //  break;
+        case "tp":
+          {
+            if (MyClan == null) {
+              args.Player.SendErrorMessage("You are not in a clan!");
+              return;
+            }
+            if (MyClan.TileX == 0 || MyClan.TileY == 0) {
+              args.Player.SendErrorMessage("Your clan has no spawn point defined!");
+              return;
+            }
+            args.Player.Teleport(MyClan.TileX * 16, MyClan.TileY * 16);
+          }
+          break;
         #endregion tp
 
         #region setspawn
-        //case "setspawn":
-        //  {
-        //    if (MyClan == null) {
-        //      args.Player.SendErrorMessage("You are not in a clan!");
-        //      return;
-        //    }
-        //    if (MyClan.Owner != args.Name) {
-        //      args.Player.SendErrorMessage("You are not allowed to alter the clan's spawnpoint!");
-        //      return;
-        //    }
-        //    ClanManager.SetSpawn(MyClan, args.Player);
-        //    args.Player.SendInfoMessage(string.Format("Your clan's spawnpoint has been changed to X:{0}, Y:{1}", MyClan.TileX, MyClan.TileY));
-        //  }
-        //  break;
+        case "setspawn":
+          {
+            if (MyClan == null) {
+              args.Player.SendErrorMessage("You are not in a clan!");
+              return;
+            }
+            if (MyClan.Owner != args.Player.Name) {
+              args.Player.SendErrorMessage("You are not allowed to alter the clan's spawnpoint!");
+              return;
+            }
+            ClanManager.SetSpawn(MyClan, (int) args.Player.Y, (int) args.Player.Y);
+            args.Player.SendInfoMessage(string.Format("Your clan's spawnpoint has been changed to X:{0}, Y:{1}", MyClan.TileX, MyClan.TileY));
+          }
+          break;
         #endregion setspawn
 
         #region setcolor
@@ -737,6 +736,8 @@ namespace Clans {
 
             if (args.Player.Group.HasPermission(Permission.Use)) {
               lines.Add("/clan join <name> - join an existing clan.");
+              lines.Add("/clan tp - teleports to clan's spawnpoint");
+              lines.Add("/clan setspawn - sets the clan's spawnpoint to current position");
               lines.Add("/clan find <player> - find out which clan a player is in.");
               lines.Add("/clan list - list all existing clans.");
               lines.Add("/clan who|online - list all online members in your clan.");
