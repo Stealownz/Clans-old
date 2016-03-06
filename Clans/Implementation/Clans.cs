@@ -728,39 +728,50 @@ namespace Clans {
               return;
 
             List<string> lines = new List<string>();
-            if (args.Player.Group.HasPermission(Permission.Chat))
+            if (MyClan != null && args.Player.Group.HasPermission(Permission.Chat))
               lines.Add("/c <message> - talk in your clan's chat.");
 
-            if (args.Player.Group.HasPermission(Permission.Create))
+            if (MyClan == null && args.Player.Group.HasPermission(Permission.Create))
               lines.Add("/clan create <clanname> - create a new clan with you as leader.");
-
-            if (args.Player.Group.HasPermission(Permission.Use)) {
+            
+            if (MyClan == null)
               lines.Add("/clan join <name> - join an existing clan.");
-              lines.Add("/clan tp - teleports to clan's spawnpoint");
-              lines.Add("/clan setspawn - sets the clan's spawnpoint to current position");
-              lines.Add("/clan find <player> - find out which clan a player is in.");
+
+            // General Commands
+            if (args.Player.Group.HasPermission(Permission.Use)) {
               lines.Add("/clan list - list all existing clans.");
+              lines.Add("/clan find <player> - find out which clan a player is in.");
+              lines.Add("/clan accept|acceptinvite|ai - join a clan you were invited to.");
+              lines.Add("/clan deny|denyinvite|ai - deny a pending clan invitation.");
+            }
+
+            // General Clan member commands
+            if (MyClan != null && args.Player.Group.HasPermission(Permission.Use)) {
+              lines.Add("/clan tp - teleports to clan's spawnpoint");
               lines.Add("/clan who|online - list all online members in your clan.");
               lines.Add("/clan members - list all members in your clan.");
               lines.Add("/clan leave - leave your current clan.");
-              lines.Add("/clan invitemode <true/false> - toggle invite-only mode.");
-              lines.Add("/clan invite <name> - will invite a player to your clan.");
-              lines.Add("/clan accept|acceptinvite|ai - join a clan you were invited to.");
-              lines.Add("/clan deny|denyinvite|ai - deny a pending clan invitation.");
-              lines.Add("/clan rename <new name> - change your clan's name.");
-              lines.Add("/clan tag <tag> - create a new clan tag.");
-              lines.Add("/clan setcolor <r, g, b> - change the clanchat's color.");
               lines.Add("/clan togglechat - toggle auto-talking in clanchat instead of global chat.");
-              lines.Add("/clan ban <player> - will ban a player from your clan.");
-              lines.Add("/clan unban <player> - will unban a player from your clan.");
               lines.Add("/clan kick <player> - will kick a player out of your clan.");
             }
 
+            // Owner only commands
+            if (MyClan != null && MyClan.Owner == args.Player.Name) {
+              lines.Add("/clan setspawn - sets the clan's spawnpoint to current position");
+              lines.Add("/clan invite <name> - will invite a player to your clan.");
+              lines.Add("/clan invitemode <true/false> - toggle invite-only mode.");
+              lines.Add("/clan rename <new name> - change your clan's name.");
+              lines.Add("/clan tag <tag> - create a new clan tag.");
+              lines.Add("/clan ban <player> - will ban a player from your clan.");
+              lines.Add("/clan unban <player> - will unban a player from your clan.");
+              lines.Add("/clan setcolor <r, g, b> - change the clanchat's color.");
+            }
+
+            // Admin commands
             if (args.Player.Group.HasPermission(Permission.Reload)) {
               lines.Add("/clan reloadclans - reload all clans and their members.");
               lines.Add("/clan reloadconfig - reload the clans configuration file.");
             }
-
 
             PaginationTools.SendPage(
               args.Player, pageNumber, lines,
