@@ -10,8 +10,8 @@ namespace Clans {
     public string Tag { get; set; }
     public string Owner { get; set; }
     public InviteMode InviteMode { get; set; }
-    public int TileX { get; set; }
-    public int TileY { get; set; }
+    public int SpawnX { get; set; }
+    public int SpawnY { get; set; }
     public Color Color { get; set; }
     public List<string> ClanMembers {
       get {

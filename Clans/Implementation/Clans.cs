@@ -108,18 +108,11 @@ namespace Clans {
       }
     }
     #endregion
-
-    // TO TEST:      
-    // "/clan ban kick"
     
     //  Future Plans
     // Wormhole potion 
     // Add external admin commands.
     // force to team
-
-    // "/clan tp - teleport to the clan's spawnpoint.",
-    // "/clan setspawn - set the clan's spawnpoint to your current location.",
-    // "/clan tpall - teleport all clan members to you.",
 
     #region Commands
     void Chat(CommandArgs args) {
@@ -344,11 +337,12 @@ namespace Clans {
               args.Player.SendErrorMessage("You are not in a clan!");
               return;
             }
-            if (MyClan.TileX == 0 || MyClan.TileY == 0) {
+            if (MyClan.SpawnX == 0 || MyClan.SpawnY == 0) {
               args.Player.SendErrorMessage("Your clan has no spawn point defined!");
               return;
             }
-            args.Player.Teleport(MyClan.TileX * 16, MyClan.TileY * 16);
+
+            args.Player.Teleport(MyClan.SpawnX * 16, MyClan.SpawnY * 16);
           }
           break;
         #endregion tp
@@ -364,8 +358,16 @@ namespace Clans {
               args.Player.SendErrorMessage("You are not allowed to alter the clan's spawnpoint!");
               return;
             }
-            ClanManager.SetSpawn(MyClan, (int) args.Player.Y, (int) args.Player.Y);
-            args.Player.SendInfoMessage(string.Format("Your clan's spawnpoint has been changed to X:{0}, Y:{1}", MyClan.TileX, MyClan.TileY));
+
+            int x = args.Player.TileX;
+            int y = args.Player.TileY;
+            x = Math.Max(0, x);
+            y = Math.Max(0, y);
+            x = Math.Min(x, Main.maxTilesX - 1);
+            y = Math.Min(y, Main.maxTilesY - 1);
+
+            ClanManager.SetSpawn(MyClan, x, y);
+            args.Player.SendInfoMessage(string.Format("Your clan's spawnpoint has been changed to X:{0}, Y:{1}", MyClan.SpawnX, MyClan.SpawnY));
           }
           break;
         #endregion setspawn

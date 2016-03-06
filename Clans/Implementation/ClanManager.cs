@@ -53,8 +53,8 @@ namespace Clans {
                      new SqlColumn("Tag", MySqlDbType.Text),
                      new SqlColumn("Owner", MySqlDbType.Text),
                      new SqlColumn("InviteMode", MySqlDbType.Int32),
-                     new SqlColumn("TileX", MySqlDbType.Int32),
-                     new SqlColumn("TileY", MySqlDbType.Int32),
+                     new SqlColumn("SpawnX", MySqlDbType.Int32),
+                     new SqlColumn("SpawnY", MySqlDbType.Int32),
                      new SqlColumn("ChatColor", MySqlDbType.Text),
                      new SqlColumn("Bans", MySqlDbType.Text)
                      ),
@@ -134,8 +134,8 @@ namespace Clans {
             string tag = reader.Get<string>("Tag");
             string owner = reader.Get<string>("Owner");
             int inviteMode = reader.Get<int>("InviteMode");
-            int tileX = reader.Get<int>("TileX");
-            int tileY = reader.Get<int>("TileY");
+            int spawnX = reader.Get<int>("SpawnX");
+            int spawnY = reader.Get<int>("SpawnY");
             string bans = reader.Get<string>("Bans");
             Color color;
             ParseColor(reader.Get<string>("ChatColor"), out color);
@@ -143,8 +143,8 @@ namespace Clans {
             Clan clan = new Clan(name, owner) {
               InviteMode = (InviteMode)inviteMode,
               Tag = tag,
-              TileX = tileX,
-              TileY = tileY,
+              SpawnX = spawnX,
+              SpawnY = spawnY,
               Color = color,
               Bans = JsonConvert.DeserializeObject<List<string>>(bans)
             };
@@ -196,10 +196,10 @@ namespace Clans {
       Clans.Add(newname,clan);
     }
 
-    public static void SetSpawn(Clan clan, int tileX, int tileY) {
-      clan.TileX = tileX;
-      clan.TileY = tileY;
-      Database.Query("UPDATE Clans SET TileX = @0, TileY = @1 WHERE Name = @2", clan.TileX, clan.TileY, clan.Name);
+    public static void SetSpawn(Clan clan, int spawnX, int spawnY) {
+      clan.SpawnX = spawnX;
+      clan.SpawnY = spawnY;
+      Database.Query("UPDATE Clans SET SpawnX = @0, SpawnY = @1 WHERE Name = @2", clan.SpawnX, clan.SpawnY, clan.Name);
     }
 
     public static void SetInviteMode(Clan clan, InviteMode mode) {
