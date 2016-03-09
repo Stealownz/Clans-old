@@ -324,7 +324,7 @@ namespace Clans {
             List<string> output = new List<string>();
             foreach (string clanname in clannames) {
               Clan c = ClanManager.Clans[clanname];
-              string temp = string.Format("{0,-31} - [{1,5}] - {2}", clanname, c.Tag, c.Owner);
+              string temp = string.Format("{0,-31} - {1,-7} - {2}", clanname, "[" + c.Tag + "]", c.Owner);
               output.Add(temp);
             }
             PaginationTools.SendPage(args.Player, pageNumber, PaginationTools.BuildLinesFromTerms(output),
