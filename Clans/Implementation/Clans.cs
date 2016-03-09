@@ -319,8 +319,15 @@ namespace Clans {
             int pageNumber;
             if (!PaginationTools.TryParsePageNumber(args.Parameters, 1, args.Player, out pageNumber))
               return;
-            IEnumerable<string> clanNames = ClanManager.Clans.Keys;
-            PaginationTools.SendPage(args.Player, pageNumber, PaginationTools.BuildLinesFromTerms(clanNames),
+
+            IEnumerable<string> clannames = ClanManager.Clans.Keys;
+            List<string> output = new List<string>();
+            foreach (string clanname in clannames) {
+              Clan c = ClanManager.Clans[clanname];
+              string temp = string.Format("{0,-31} - [{1,5}] - {2}", clanname, c.Tag, c.Owner);
+              output.Add(temp);
+            }
+            PaginationTools.SendPage(args.Player, pageNumber, PaginationTools.BuildLinesFromTerms(output),
                 new PaginationTools.Settings {
                   HeaderFormat = "Clans ({0}/{1}):",
                   FooterFormat = "Type /clan list {0} for more.",
@@ -332,6 +339,8 @@ namespace Clans {
 
         #region tp
         case "tp":
+        case "spawn":
+        case "home":
           {
             if (MyClan == null) {
               args.Player.SendErrorMessage("You are not in a clan!");
@@ -349,6 +358,9 @@ namespace Clans {
 
         #region setspawn
         case "setspawn":
+        case "spawnpoint":
+        case "settp":
+        case "sethome":
           {
             if (MyClan == null) {
               args.Player.SendErrorMessage("You are not in a clan!");
@@ -418,19 +430,29 @@ namespace Clans {
         #region members
         case "members":
           {
-            if (MyClan == null) {
-              args.Player.SendErrorMessage("You are not in a clan!");
-              return;
+            Clan toList = null;
+            if (args.Parameters.Count == 1) {
+              toList = MyClan;
+              if (toList == null) {
+                args.Player.SendErrorMessage("You are not in any clan!");
+                return;
+              }
+            } else {
+              toList = ClanManager.FindClanByName(args.Parameters[1]);
+              if (toList == null) {
+                args.Player.SendErrorMessage("Clan {0} does not exist.", args.Parameters[1]);
+                return;
+              }
             }
-
+            
             int pageNumber;
-            if (!PaginationTools.TryParsePageNumber(args.Parameters, 1, args.Player, out pageNumber))
+            if (!PaginationTools.TryParsePageNumber(args.Parameters, 2, args.Player, out pageNumber))
               return;
 
-            PaginationTools.SendPage(args.Player, pageNumber, PaginationTools.BuildLinesFromTerms(MyClan.ClanMembers),
+            PaginationTools.SendPage(args.Player, pageNumber, PaginationTools.BuildLinesFromTerms(toList.ClanMembers),
                 new PaginationTools.Settings {
-                  HeaderFormat = MyClan.ClanMembers.Count<string>() + " Clanmembers (page: {0}/{1}):",
-                  FooterFormat = "Type /clan who {0} for more.",
+                  HeaderFormat = toList.Name + ": " + toList.ClanMembers.Count<string>() + " Clanmembers (page: {0}/{1}):",
+                  FooterFormat = "Type /clan members {0} for more.",
                 });
           }
           break;
@@ -749,9 +771,9 @@ namespace Clans {
 
             // General Clan member commands
             if (MyClan != null && args.Player.Group.HasPermission(Permission.Use)) {
-              lines.Add("/clan tp - teleports to clan's spawnpoint");
+              lines.Add("/clan tp|spawn|home - teleports to clan's spawnpoint");
               lines.Add("/clan who|online - list all online members in your clan.");
-              lines.Add("/clan members - list all members in your clan.");
+              lines.Add("/clan members [clan name]- list all members in your clan, or clan name specified.");
               lines.Add("/clan leave - leave your current clan.");
               lines.Add("/clan togglechat - toggle auto-talking in clanchat instead of global chat.");
               lines.Add("/clan kick <player> - will kick a player out of your clan.");
@@ -759,7 +781,7 @@ namespace Clans {
 
             // Owner only commands
             if (MyClan != null && MyClan.Owner == args.Player.Name) {
-              lines.Add("/clan setspawn - sets the clan's spawnpoint to current position");
+              lines.Add("/clan settp|setspawn|sethome - sets the clan's spawnpoint to current position");
               lines.Add("/clan invite <name> - will invite a player to your clan.");
               lines.Add("/clan invitemode <true/false> - toggle invite-only mode.");
               lines.Add("/clan rename <new name> - change your clan's name.");
